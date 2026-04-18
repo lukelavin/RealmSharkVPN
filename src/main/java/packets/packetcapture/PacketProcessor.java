@@ -57,6 +57,17 @@ public class PacketProcessor extends Thread implements PProcessor {
     }
 
     /**
+     * Forces the sniffer to capture only on the given interface name.
+     * Pass null to restore automatic interface detection.
+     * Must be called before {@link #start()} to take effect.
+     *
+     * @param interfaceName pcap interface name, e.g. "eth0" or a Windows NPF GUID string.
+     */
+    public static void setSelectedInterface(String interfaceName) {
+        Sniffer.setSelectedInterface(interfaceName);
+    }
+
+    /**
      * Method to start the packet sniffer that will send packets back to receivedPackets.
      */
     public void tapPackets() {

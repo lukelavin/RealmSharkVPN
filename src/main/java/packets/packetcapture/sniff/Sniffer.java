@@ -37,6 +37,33 @@ public class Sniffer {
     private boolean stop;
 
     /**
+     * Optionally set to force the sniffer to only listen on a specific
+     * network interface by name. Useful when a VPN is active and the
+     * auto-detection picks the wrong (virtual) adapter.
+     * Set to null to restore automatic detection behaviour.
+     */
+    private static String selectedInterface = null;
+
+    /**
+     * Sets the network interface the sniffer should capture on.
+     * Call before starting the sniffer.  Pass null to restore
+     * automatic interface detection.
+     *
+     * @param interfaceName The pcap interface name (e.g. "\\Device\\NPF_{GUID}" on
+     *                      Windows, "eth0" on Linux/macOS), or null for auto-detect.
+     */
+    public static void setSelectedInterface(String interfaceName) {
+        selectedInterface = interfaceName;
+    }
+
+    /**
+     * Returns the currently selected interface name, or null if auto-detection is active.
+     */
+    public static String getSelectedInterface() {
+        return selectedInterface;
+    }
+
+    /**
      * Constructor of a Windows sniffer.
      *
      * @param processor PProcessor instance used as the base.
@@ -69,7 +96,16 @@ public class Sniffer {
         realmPcap = null;
         stop = false;
 
+        System.out.println("[Sniffer] selectedInterface=" + selectedInterface);
+        System.out.println("[Sniffer] total interfaces found: " + interfaceList.length);
+
         for (int i = 0; i < interfaceList.length; i++) {
+            System.out.println("[Sniffer] interface[" + i + "]: name=" + interfaceList[i].name() + " desc=" + interfaceList[i].description());
+            // If the user has manually selected an interface, skip all others.
+            if (selectedInterface != null && !selectedInterface.equals(interfaceList[i].name())) {
+                continue;
+            }
+
             DefaultLiveOptions defaultLiveOptions = new DefaultLiveOptions();
             defaultLiveOptions.timeout(60000);
             Pcap pcap = null;
@@ -105,6 +141,7 @@ public class Sniffer {
 
                 pcap.setFilter("tcp port " + port, true);
                 pcaps[i] = pcap;
+                System.out.println("[Sniffer] Opened and filtering on: " + interfaceList[i].name());
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -142,6 +179,7 @@ public class Sniffer {
             @Override
             public void run() {
                 NativeBridge.PacketListener listener = packet -> {
+                    System.out.println("[Sniffer] Raw packet received, size=" + (packet != null ? packet.getPayload().length : "null"));
                     TcpStreamErrorHandler.INSTANCE.logTCPPacket(packet);
 
                     if (packet != null && computeChecksum(packet.getPayload())) {
@@ -204,9 +242,19 @@ public class Sniffer {
                     if (packet == null) continue;
 
                     try {
+                        // First try standard Ethernet framing.
                         EthernetPacket ethernetPacket = packet.getNewEthernetPacket();
-                        if (ethernetPacket != null) {
-                            Ip4Packet ip4packet = ethernetPacket.getNewIp4Packet();
+                        Ip4Packet ip4packet = ethernetPacket.getNewIp4Packet();
+                        System.out.println("[Sniffer] etherType=0x" + String.format("%04x", ethernetPacket.getEtherType()) + " ip4FromEthernet=" + (ip4packet != null));
+
+                        // Fall back to raw IP parsing for TUN/WireGuard interfaces
+                        // (DLT_NULL loopback or DLT_RAW — no Ethernet header present).
+                        if (ip4packet == null) {
+                            ip4packet = packet.getDirectIp4Packet();
+                            System.out.println("[Sniffer] directIp4=" + (ip4packet != null) + " firstBytes=" + String.format("%02x %02x %02x %02x %02x", packet.getPayload()[0], packet.getPayload()[1], packet.getPayload()[2], packet.getPayload()[3], packet.getPayload()[4]));
+                        }
+
+                        if (ip4packet != null) {
                             Ip4Packet assembledIp4packet = Ip4Defragmenter.defragment(ip4packet);
                             if (assembledIp4packet != null) {
                                 TcpPacket tcpPacket = assembledIp4packet.getNewTcpPacket();
