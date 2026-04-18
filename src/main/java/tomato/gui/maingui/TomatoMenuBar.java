@@ -867,12 +867,8 @@ public class TomatoMenuBar implements ActionListener {
             PropertiesManager.setProperties("theme", "solarizedLight");
         } else if (e.getSource() == themeGruvbox) { // theme
             GruvboxTheme.install();
-            String gruvboxFont = GruvboxTheme.bestMonoFont();
-            TomatoGUI.fontNameTextAreas(gruvboxFont, java.awt.Font.PLAIN);
+            TomatoGUI.fontNameTextAreas(GruvboxTheme.bestMonoFont(), java.awt.Font.PLAIN);
             PropertiesManager.setProperties("theme", "gruvbox");
-            // Persist font so loadFontNamePreset() restores it correctly on next startup.
-            PropertiesManager.setProperties("fontName", gruvboxFont);
-            PropertiesManager.setProperties("fontStyle", "0");
         } else if (e.getSource() == fontSize8) { // font size
             TomatoGUI.fontSizeTextAreas(8);
             PropertiesManager.setProperties("fontSize", Integer.toString(8));
