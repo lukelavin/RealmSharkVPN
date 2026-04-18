@@ -2,6 +2,12 @@ package tomato.gui.maingui;
 
 import com.github.weisj.darklaf.LafManager;
 import com.github.weisj.darklaf.theme.*;
+import tomato.gui.theme.GruvboxTheme;
+import packets.packetcapture.PacketProcessor;
+import packets.packetcapture.sniff.ardikars.NativeBridge;
+import pcap.spi.Address;
+import pcap.spi.Interface;
+import pcap.spi.Service;
 import tomato.Tomato;
 import tomato.gui.TomatoGUI;
 import tomato.gui.chat.ChatGUI;
@@ -17,6 +23,9 @@ import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.net.Inet4Address;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Menu bar builder class
@@ -24,7 +33,7 @@ import java.awt.event.ActionListener;
 public class TomatoMenuBar implements ActionListener {
     private JMenuItem about, borders, clearChat, bandwidth, javav, clearDpsLogs, theme, fontMenu, dpsOptions, chat, sound, chatPingMessage, entityIdPingMessage, itemPingMessage, enchantPingMessage;
     private JRadioButtonMenuItem fontSize8, fontSize12, fontSize16, fontSize24, fontSize48, fontSizeCustom;
-    private JRadioButtonMenuItem themeDarcula, themeighContrastDark, themeHighContrastLight, themeIntelliJ, themeSolarizedDark, themeSolarizedLight;
+    private JRadioButtonMenuItem themeDarcula, themeighContrastDark, themeHighContrastLight, themeIntelliJ, themeSolarizedDark, themeSolarizedLight, themeGruvbox;
     private JRadioButtonMenuItem fontNameMonospaced, fontNameDialog, fontNameDialogInput, fontNameSerif, fontNameSansSerif, fontNameSegoe;
     private JRadioButtonMenuItem dpsEquipmentNone, dpsEquipmentSimple, dpsEquipmentFull, dpsIcon;
     private JRadioButtonMenuItem dpsSortLastHit, dpsSortFirstHit, dpsSortMaxHp, dpsSortFightTimer, dpsSortBossOnly;
@@ -35,6 +44,7 @@ public class TomatoMenuBar implements ActionListener {
     private JMenuBar jMenuBar;
     private JFrame frame;
     private static JMenuItem sniffer;
+    private static JMenuItem selectInterface;
 
     /**
      * Main builder for menus for the Tomato GUI.
@@ -66,6 +76,12 @@ public class TomatoMenuBar implements ActionListener {
         sniffer = new JMenuItem("Start Sniffer");
         sniffer.addActionListener(this);
         file.add(sniffer);
+
+        selectInterface = new JMenuItem("Select Network Interface...");
+        selectInterface.setToolTipText("Choose which network adapter to sniff (useful when a VPN is active)");
+        selectInterface.addActionListener(this);
+        file.add(selectInterface);
+
         file.add(new JSeparator(SwingConstants.HORIZONTAL));
         disableDataSending = new JCheckBoxMenuItem("Opt-out Loot Sharing");
         disableDataSending.setToolTipText("Disables sending loot to server");
@@ -225,6 +241,7 @@ public class TomatoMenuBar implements ActionListener {
         themeIntelliJ = addRadioButtonMenuItem(groupTheme, theme, "IntelliJ Theme");
         themeSolarizedDark = addRadioButtonMenuItem(groupTheme, theme, "Solarized Dark Theme");
         themeSolarizedLight = addRadioButtonMenuItem(groupTheme, theme, "Solarized Light Theme");
+        themeGruvbox = addRadioButtonMenuItem(groupTheme, theme, "Gruvbox Dark Theme");
         setThemeRadioButton();
 
         ButtonGroup groupFontSize = new ButtonGroup();
@@ -314,14 +331,33 @@ public class TomatoMenuBar implements ActionListener {
 
     /**
      * Auto-starts the sniffer if the app was closed when it was running.
+     * Also restores a previously selected network interface.
      */
     private void autoStartSnifferPreset() {
+        // Restore saved interface selection (must happen before sniffer starts).
+        String savedInterface = PropertiesManager.getProperty("selectedInterface");
+        if (savedInterface != null && !savedInterface.isEmpty()) {
+            PacketProcessor.setSelectedInterface(savedInterface);
+            selectInterface.setText("Interface: " + friendlyInterfaceName(savedInterface));
+        }
+
         String snifAuto = PropertiesManager.getProperty("sniffer");
         if (snifAuto == null || !snifAuto.equals("T")) return;
 
         sniffer.setText("Stop Sniffer");
         Tomato.startPacketSniffer();
         TomatoGUI.setStateOfSniffer(true);
+    }
+
+    /**
+     * Returns a short display name for an interface (last segment of the full name).
+     */
+    private static String friendlyInterfaceName(String name) {
+        if (name == null) return "Auto-detect";
+        // On Windows names look like \Device\NPF_{GUID}, show just the last part.
+        int lastSep = Math.max(name.lastIndexOf('\\'), name.lastIndexOf('/'));
+        String tail = lastSep >= 0 ? name.substring(lastSep + 1) : name;
+        return tail.length() > 30 ? tail.substring(0, 27) + "..." : tail;
     }
 
     /**
@@ -350,6 +386,9 @@ public class TomatoMenuBar implements ActionListener {
                 break;
             case "solarizedLight":
                 themeSolarizedLight.setSelected(true);
+                break;
+            case "gruvbox":
+                themeGruvbox.setSelected(true);
                 break;
             default:
             case "darcula":
@@ -734,6 +773,8 @@ public class TomatoMenuBar implements ActionListener {
                 stopPacketSniffer();
                 PropertiesManager.setProperties("sniffer", "F");
             }
+        } else if (e.getSource() == selectInterface) { // Select network interface for VPN support
+            showInterfacePickerDialog();
         } else if (e.getSource() == disableDataSending) { // disables data sharing
             boolean b = disableDataSending.isSelected();
             PropertiesManager.setProperties("disableDataSending", b ? "true" : "false");
@@ -824,6 +865,10 @@ public class TomatoMenuBar implements ActionListener {
         } else if (e.getSource() == themeSolarizedLight) { // theme
             LafManager.install(new SolarizedLightTheme());
             PropertiesManager.setProperties("theme", "solarizedLight");
+        } else if (e.getSource() == themeGruvbox) { // theme
+            GruvboxTheme.install();
+            TomatoGUI.fontNameTextAreas(GruvboxTheme.bestMonoFont(), java.awt.Font.PLAIN);
+            PropertiesManager.setProperties("theme", "gruvbox");
         } else if (e.getSource() == fontSize8) { // font size
             TomatoGUI.fontSizeTextAreas(8);
             PropertiesManager.setProperties("fontSize", Integer.toString(8));
@@ -926,6 +971,105 @@ public class TomatoMenuBar implements ActionListener {
             String bit = System.getProperty("sun.arch.data.model");
             JFrame frame = new JFrame("Java version");
             JOptionPane.showMessageDialog(frame, String.format("Java version: %s (%s-bit)", version, bit));
+        }
+    }
+
+    /**
+     * Opens a dialog listing all available pcap network interfaces so the user can
+     * pick the one game traffic flows through.  Useful when a VPN adds virtual
+     * adapters that confuse the auto-detection.
+     * The choice is persisted in PropertiesManager under "selectedInterface".
+     */
+    private void showInterfacePickerDialog() {
+        try {
+            Service service = Service.Creator.create("PcapService");
+            Interface[] interfaces = NativeBridge.getInterfaces(service);
+
+            // Build display strings: "Description (IP)" or just name if no description.
+            List<String> displayNames = new ArrayList<>();
+            List<String> pcapNames = new ArrayList<>();
+
+            // First entry: reset to auto-detect.
+            displayNames.add("Auto-detect (default)");
+            pcapNames.add(null);
+
+            for (Interface iface : interfaces) {
+                StringBuilder sb = new StringBuilder();
+                String desc = iface.description();
+                if (desc != null && !desc.isEmpty()) {
+                    sb.append(desc);
+                } else {
+                    sb.append(iface.name());
+                }
+                // Append first IPv4 address if present.
+                if (iface.addresses() != null) {
+                    for (Address addr : iface.addresses()) {
+                        if (addr.address() instanceof Inet4Address) {
+                            sb.append("  [").append(addr.address().getHostAddress()).append("]");
+                            break;
+                        }
+                    }
+                }
+                displayNames.add(sb.toString());
+                pcapNames.add(iface.name());
+            }
+
+            String[] options = displayNames.toArray(new String[0]);
+
+            // Pre-select the currently active choice.
+            String current = PropertiesManager.getProperty("selectedInterface");
+            int preselect = 0;
+            if (current != null) {
+                for (int i = 1; i < pcapNames.size(); i++) {
+                    if (current.equals(pcapNames.get(i))) {
+                        preselect = i;
+                        break;
+                    }
+                }
+            }
+
+            String choice = (String) JOptionPane.showInputDialog(
+                    frame,
+                    "<html>Choose the network interface to sniff.<br>" +
+                    "<small>Pick your physical Ethernet or Wi-Fi adapter.<br>" +
+                    "Avoid TAP/TUN/VPN virtual adapters unless your game<br>" +
+                    "traffic actually routes through the VPN tunnel.</small></html>",
+                    "Select Network Interface",
+                    JOptionPane.PLAIN_MESSAGE,
+                    null,
+                    options,
+                    options[preselect]);
+
+            if (choice == null) return; // user cancelled
+
+            int idx = displayNames.indexOf(choice);
+            String pickedPcapName = pcapNames.get(idx);
+
+            // Apply and persist.
+            PacketProcessor.setSelectedInterface(pickedPcapName);
+            if (pickedPcapName == null) {
+                PropertiesManager.setProperties("selectedInterface", "");
+                selectInterface.setText("Select Network Interface...");
+            } else {
+                PropertiesManager.setProperties("selectedInterface", pickedPcapName);
+                selectInterface.setText("Interface: " + friendlyInterfaceName(pickedPcapName));
+            }
+
+            // If sniffer is currently running, warn the user to restart it.
+            if (sniffer.getText().contains("Stop")) {
+                JOptionPane.showMessageDialog(frame,
+                        "Interface selection will take effect on the next sniffer start.\n" +
+                        "Please stop and restart the sniffer.",
+                        "Restart Required",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(frame,
+                    "Could not list network interfaces:\n" + ex.getMessage() +
+                    "\n\nMake sure Npcap is installed.",
+                    "Interface Error",
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 

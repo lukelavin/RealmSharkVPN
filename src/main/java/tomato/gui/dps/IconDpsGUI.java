@@ -142,11 +142,10 @@ public class IconDpsGUI extends DisplayDpsGUI {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
         JPanel mobPanel = new JPanel();
+        Color separatorColor = UIManager.getColor("Separator.foreground");
+        if (separatorColor == null) separatorColor = Color.GRAY;
         mobPanel.setBorder(
-            BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 1, 0, Color.GRAY),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)
-            )
+            BorderFactory.createMatteBorder(1, 0, 1, 0, separatorColor)
         );
 
         mobPanel.setLayout(new BoxLayout(mobPanel, BoxLayout.X_AXIS));

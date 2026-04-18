@@ -1,13 +1,16 @@
 plugins {
     id 'java'
     id 'application'
-    id 'com.github.johnrengelman.shadow' version '7.0.0'
+    id 'com.gradleup.shadow' version '8.3.0'
 }
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
 
 project.version = 'v1.9.2'
-applicationName = 'Tomato'
+ext.applicationName = 'Tomato'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
 
 project.ext.lwjglVersion = "3.3.1"
 project.ext.jomlVersion = "1.10.5"
@@ -23,8 +26,8 @@ switch (org.gradle.internal.os.OperatingSystem.current()) {
 
 repositories {
     mavenCentral()
-    maven {url="https://s01.oss.sonatype.org/content/repositories/snapshots/"}
-    maven {url="https://mvnrepository.com/artifact/org.slf4j/slf4j-nop/"}
+    maven { url = "https://s01.oss.sonatype.org/content/repositories/snapshots/" }
+    maven { url = "https://mvnrepository.com/artifact/org.slf4j/slf4j-nop/" }
 }
 
 dependencies {
@@ -34,19 +37,20 @@ dependencies {
     runtimeOnly 'org.slf4j:slf4j-nop:2.0.17'
 }
 
-mainClassName = applicationName.toLowerCase() + '.' + applicationName
-
+application {
+    mainClass = 'tomato.Tomato'
+}
 
 jar {
     manifest {
         attributes(
-                'Main-Class': mainClassName
+                'Main-Class': 'tomato.Tomato'
         )
     }
 }
 
 // Ugly solution to get version into source.
-task generateSources {
+tasks.register('generateSources') {
     doFirst {
         def srcFile = new File(file("$buildDir/../src/main/java/" + applicationName.toLowerCase() + "/version"), "Version.java")
         srcFile.parentFile.mkdirs()
@@ -61,18 +65,15 @@ public class Version {
 """)
     }
 }
-compileJava.dependsOn generateSources
-compileJava.source generateSources.outputs.files, sourceSets.main.java
 
-/**
- * add to vm optoins
- * "-XstartOnFirstThread"
- */
+tasks.named('compileJava') {
+    dependsOn 'generateSources'
+    source tasks.named('generateSources').get().outputs.files, sourceSets.main.java
+}
+
 shadowJar {
     manifest {
-        attributes 'Main-Class': mainClassName
+        attributes 'Main-Class': 'tomato.Tomato'
     }
     archiveFileName = "${applicationName}-${project.version}.jar"
 }
-
-apply plugin: 'com.github.johnrengelman.shadow'

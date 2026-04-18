@@ -15,6 +15,7 @@ import tomato.gui.dps.DpsDisplayOptions;
 import tomato.gui.dps.DpsGUI;
 import tomato.gui.keypop.KeypopGUI;
 import tomato.gui.maingui.*;
+import tomato.gui.theme.GruvboxTheme;
 import tomato.gui.myinfo.MyInfoGUI;
 import tomato.gui.quest.QuestGUI;
 import tomato.gui.security.ParsePanelGUI;
@@ -157,6 +158,10 @@ public class TomatoGUI {
                 break;
             case "solarizedLight":
                 LafManager.install(new SolarizedLightTheme());
+                break;
+            case "gruvbox":
+                GruvboxTheme.install();
+                fontNameTextAreas(GruvboxTheme.bestMonoFont(), Font.PLAIN);
                 break;
             default:
             case "darcula":
