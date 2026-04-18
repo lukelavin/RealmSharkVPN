@@ -161,7 +161,7 @@ public class TomatoGUI {
                 break;
             case "gruvbox":
                 GruvboxTheme.install();
-                fontNameTextAreas(GruvboxTheme.bestMonoFont(), Font.PLAIN);
+                // Font is applied later by loadFontNamePreset() once GUI panels exist.
                 break;
             default:
             case "darcula":
